@@ -6,12 +6,14 @@
 #   A commandline interface to sqlite.
 #   Uses heavily auto completion in nearly any place.
 #
-from cmd2 import Cmd
 import os
 import sqlite3 as DB
 import sys
 import logging
 import re
+
+from cmd2 import Cmd
+
 # =============================================================================
 # System Core Settings = START ================================================
 # TODO: There is a len() overhead with this colors of 13 characters,
@@ -36,12 +38,13 @@ if NOCOLOR:
     def WHITE(text):        return text
     def YELLOW(text):       return text
 else:
-    # These color escapes may look obvious to you (at least it's the same for me)
+    # These color escapes may look obvious to you (at least for me)
     # I feel the need to explain this.
     # The color code like "\033[0;30m" has to be escaped with \001 and \002
     # because the programm uses colors even for the prompt and without this
     # escapes the readline library calculates the length wrong and destroys
-    # the history searching/editing. \001 means "start ignore" and \002 stop ignore
+    # the history searching/editing functionality.
+    # \001 means "start ignore" and \002 stop ignore
     def BLACK(text):        return "\001\033[0;30m\002%s\001\033[0;0m\002" % (text,)
     def BLUE(text):         return "\001\033[0;34m\002%s\001\033[0;0m\002" % (text,)
     def BROWN(text):        return "\001\033[0;33m\002%s\001\033[0;0m\002" % (text,)
