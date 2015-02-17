@@ -7,6 +7,7 @@ did not provide.
 
 * Heavily use of auto-completition.
 * Commandhistory file.
+* ...
 
 ## Missing features for release 1.0:
     * global config
