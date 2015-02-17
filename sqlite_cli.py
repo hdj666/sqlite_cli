@@ -14,6 +14,7 @@ import re
 
 from cmd2 import Cmd
 
+
 # =============================================================================
 # System Core Settings = START ================================================
 # TODO: There is a len() overhead with this colors of 13 characters,
@@ -38,29 +39,22 @@ if NOCOLOR:
     def WHITE(text):        return text
     def YELLOW(text):       return text
 else:
-    # These color escapes may look obvious to you (at least for me)
-    # I feel the need to explain this.
-    # The color code like "\033[0;30m" has to be escaped with \001 and \002
-    # because the programm uses colors even for the prompt and without this
-    # escapes the readline library calculates the length wrong and destroys
-    # the history searching/editing functionality.
-    # \001 means "start ignore" and \002 stop ignore
-    def BLACK(text):        return "\001\033[0;30m\002%s\001\033[0;0m\002" % (text,)
-    def BLUE(text):         return "\001\033[0;34m\002%s\001\033[0;0m\002" % (text,)
-    def BROWN(text):        return "\001\033[0;33m\002%s\001\033[0;0m\002" % (text,)
-    def CYAN(text):         return "\001\033[0;36m\002%s\001\033[0;0m\002" % (text,)
-    def DARK_GRAY(text):    return "\001\033[1;30m\002%s\001\033[0;0m\002" % (text,)
-    def GREEN(text):        return "\001\033[0;32m\002%s\001\033[0;0m\002" % (text,)
-    def LIGHT_BLUE(text):   return "\001\033[1;34m\002%s\001\033[0;0m\002" % (text,)
-    def LIGHT_CYAN(text):   return "\001\033[1;36m\002%s\001\033[0;0m\002" % (text,)
-    def LIGHT_RED(text):    return "\001\033[1;31m\002%s\001\033[0;0m\002" % (text,)
-    def LIGHT_GRAY(text):   return "\001\033[0;37m\002%s\001\033[0;0m\002" % (text,)
-    def LIGHT_GREEN(text):  return "\001\033[1;32m\002%s\001\033[0;0m\002" % (text,)
-    def LIGHT_PURPLE(text): return "\001\033[1;35m\002%s\001\033[0;0m\002" % (text,)
-    def PURPLE(text):       return "\001\033[0;35m\002%s\001\033[0;0m\002" % (text,)
-    def RED(text):          return "\001\033[0;31m\002%s\001\033[0;0m\002" % (text,)
-    def WHITE(text):        return "\001\033[1;37m\002%s\001\033[0;0m\002" % (text,)
-    def YELLOW(text):       return "\001\033[1;33m\002%s\001\033[0;0m\002" % (text,)
+    def BLACK(text):        return "\033[0;30m%s\033[0;0m" % (text,)
+    def BLUE(text):         return "\033[0;34m%s\033[0;0m" % (text,)
+    def BROWN(text):        return "\033[0;33m%s\033[0;0m" % (text,)
+    def CYAN(text):         return "\033[0;36m%s\033[0;0m" % (text,)
+    def DARK_GRAY(text):    return "\033[1;30m%s\033[0;0m" % (text,)
+    def GREEN(text):        return "\033[0;32m%s\033[0;0m" % (text,)
+    def LIGHT_BLUE(text):   return "\033[1;34m%s\033[0;0m" % (text,)
+    def LIGHT_CYAN(text):   return "\033[1;36m%s\033[0;0m" % (text,)
+    def LIGHT_RED(text):    return "\033[1;31m%s\033[0;0m" % (text,)
+    def LIGHT_GRAY(text):   return "\033[0;37m%s\033[0;0m" % (text,)
+    def LIGHT_GREEN(text):  return "\033[1;32m%s\033[0;0m" % (text,)
+    def LIGHT_PURPLE(text): return "\033[1;35m%s\033[0;0m" % (text,)
+    def PURPLE(text):       return "\033[0;35m%s\033[0;0m" % (text,)
+    def RED(text):          return "\033[0;31m%s\033[0;0m" % (text,)
+    def WHITE(text):        return "\033[1;37m%s\033[0;0m" % (text,)
+    def YELLOW(text):       return "\033[1;33m%s\033[0;0m" % (text,)
 
 ISOLATION_LEVELS            = (
     'DEFERRED',
@@ -147,7 +141,9 @@ HIGHLIGHT           = WHITE
 class SQLiteCli(Cmd):
     def __init__(self):
         Cmd.__init__(self)
-        self.prompt             = LIGHT_BLUE('==> ')
+        # FIXME: dont use color on prompt because readline gets confused with this
+        # FIXME: and \001 + \002 dont work everywere
+        self.prompt             = '==> '
         self.ruler              = DARK_GRAY("=")
         self.doc_header         = RED('Documented commands (type help <topic>):')
         self.undoc_header       = RED('Undocumented commands:')
