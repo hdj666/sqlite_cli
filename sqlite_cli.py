@@ -11,9 +11,18 @@ import sqlite3 as DB
 import sys
 import logging
 import re
+import readline
 
 from cmd2 import Cmd
 
+
+histfile = os.path.join(os.path.expanduser("~"), ".sqlite_cli.history")
+try:
+    readline.read_history_file(histfile)
+except IOError:
+    pass
+import atexit
+atexit.register(readline.write_history_file, histfile)
 
 # =============================================================================
 # System Core Settings = START ================================================
@@ -130,6 +139,11 @@ FORMATS = {
 
 DATABASE_FILENAME_SUFFIXES  = ['db', 'sqlite',]
 SQL_GET_TABLE_NAMES         = "SELECT tbl_name as name from sqlite_master where type in ('table');"
+# SQL_KEYWORDS                = (
+#     'SELECT', 'FROM', 'UPDATE', 'SET', 'ON', 'ORDER BY', 'LIMIT', 'AS', 'DROP', 'PRAGMA',
+#     'JOIN', 'LEFT', 'RIGHT', 'NOT', 'IN',
+# )
+
 
 # Color Theme Settings = START ================================================
 COLUMN_NAME_COLOR   = YELLOW
@@ -149,12 +163,13 @@ class SQLiteCli(Cmd):
         self.undoc_header       = RED('Undocumented commands:')
         self.name               = None
         self.connection         = None
-        self.mode               = TABLE
+        self.mode               = LINE
         self.isolation_level    = None # autocommit
         self.loglevel           = 'DEBUG'
         self._set_loglevel()
 
         self.cache_table_names  = []
+        self.cache_column_names = {} # { TABLE_NAME: [COLUMN_NAME_0, COLUMN_NAME_1, COLUMN_NAME_N,], }
 
     # =========================================================================
     def do_mode(self, line):
@@ -178,7 +193,8 @@ class SQLiteCli(Cmd):
         return self._complete(text, FORMATS.keys())
 
     # =========================================================================
-    def do_cfg_table_column(self, line):
+    @staticmethod
+    def do_cfg_table_column(line):
         params = line.split(' ')
         if len(params) == 1:
             print('Configuration for Outputformat %s:' % HIGHLIGHT('TABLE'))
@@ -225,18 +241,18 @@ class SQLiteCli(Cmd):
                     elif value in ('FALSE', 'NO',):
                         FORMATS[TABLE][COLUMN_WIDTHS][params[0]][TRUNCATE_LINE] = False
                     else:
-                        log.error('Value for TRUNCATE_LINE unrecognised! (%s)', params[3])
+                        log.error("Value for TRUNCATE_LINE is not one of (TRUE|FALSE|YES|NO)! It's %s.", params[3])
 
-
-    def help_cfg_table_column(self):
+    @staticmethod
+    def help_cfg_table_column():
         print
         print HIGHLIGHT(">> %s [COLUMN_INDEX] [MAX_WIDTH] [MIN_WIDTH] [TRUNCATE_LINE]") % (RED("cfg_table_column"),)
         print "   Sets formating parameter for output-mode TABLE for a single column."
         print
-        print "   If called without parameters then actual configuration is shown."
+        print "   If called without parameters the actual configuration is shown."
         print
-        print "   [TRUNCATE_LINE] True/False/Yes/No, "
-        print "      if True then column data will be truncated at MAX_WIDTH."
+        print "   [TRUNCATE_LINE] True/False/Yes/No (case insensitive) "
+        print "      if True or Yes the column data will be truncated at MAX_WIDTH."
         print "   All parameters from right to left are optional."
         print
 
@@ -244,6 +260,10 @@ class SQLiteCli(Cmd):
     def do_sys_update_table_names(self, line):
         """ update cache for table names. """
         self._update_cache_table_names()
+
+    def do_show_column_names(self, table_name):
+        for name in self.cache_column_names[table_name]:
+            print "%s.%s" % (LIGHT_GRAY(table_name), YELLOW(name),)
 
     # =========================================================================
     def do_loglevel(self, level):
@@ -277,8 +297,8 @@ class SQLiteCli(Cmd):
             self.connection.isolation_level = level
         else:
             log.error('Unknown/handled isolation_level: %s', level)
-
-    def help_isolation_level(self):
+    @staticmethod
+    def help_isolation_level():
         print
         print HIGHLIGHT(">> %s [LEVEL]") % (RED('isolation_level'),)
         print "   Sets the Database isolation level to [LEVEL]."
@@ -294,7 +314,8 @@ class SQLiteCli(Cmd):
         return self._complete(text, ISOLATION_LEVELS)
 
     # =========================================================================
-    def emptyline(self):
+    @staticmethod
+    def emptyline():
         return
 
     # =========================================================================
@@ -311,7 +332,8 @@ class SQLiteCli(Cmd):
         log.debug("Connected to database '%s'.", db_name)
         log.debug("SQLiteVersion is '%s'.", data['version'])
 
-    def help_use(self):
+    @staticmethod
+    def help_use():
         print
         print HIGHLIGHT(">> %s [DATABASE FILE NAME]") % (RED('use'),)
         print "   Opens the given SQLite Database file."
@@ -385,9 +407,16 @@ class SQLiteCli(Cmd):
             log.error("(default cmdhandler) Command failed! %s", e)
 
     def completedefault(self, text, line, begidx, endidx):
+        #log.debug('completedefault: %s | %s', text, line)
         if len(self.cache_table_names) == 0:
             self._update_cache_table_names()
-        return self._complete(text, self.cache_table_names)
+        word_list = self.cache_table_names
+        for table_name in line.split(' '):
+            if table_name in self.cache_table_names:
+                word_list += [ '%s.%s' % (table_name, col_name,) for col_name in self.cache_column_names[table_name] ]
+
+        #word_list += SQL_KEYWORDS
+        return self._complete(text, word_list)
 
     # =========================================================================
     # Helper Methods and Hook Implementations
@@ -403,12 +432,12 @@ class SQLiteCli(Cmd):
             return
 
         if self.mode == TABLE:
-            self._print_table(cursor, rows)
+            self._print_mode_table(cursor, rows)
         elif self.mode == LINE:
-            self._print_line(cursor, rows)
+            self._print_mode_line(cursor, rows)
 
-
-    def _print_line(self, cursor, rows):
+    @staticmethod
+    def _print_mode_line(cursor, rows):
         column_names = [ cn[0] for cn in cursor.description ]
 
         width = []
@@ -423,7 +452,7 @@ class SQLiteCli(Cmd):
             print
 
 
-    def _print_table(self, cursor, rows):
+    def _print_mode_table(self, cursor, rows):
         header_finished = False
         column_names    = [ cn[0] for cn in cursor.description ]
         #
@@ -501,11 +530,12 @@ class SQLiteCli(Cmd):
             print
         print FRAME_COLOR("=") * width
 
-    def _complete(self, text, list):
+    @staticmethod
+    def _complete(text, word_list):
         if not text:
-            completions = list[:]
+            completions = word_list[:]
         else:
-            completions = [ word for word in list if word.startswith(text) ]
+            completions = [ word for word in word_list if word.startswith(text) ]
         return completions
 
     def _connected(self):
@@ -522,13 +552,24 @@ class SQLiteCli(Cmd):
         cursor.execute(SQL_GET_TABLE_NAMES)
         for name in cursor:
             self.cache_table_names.append( name['name'] )
-        self.cache_table_names.sort()
+            self._update_cache_column_names(name['name'])
+
+    def _update_cache_column_names(self, table_name):
+        if self.connection is None:
+            return
+        cursor = self.connection.cursor()
+        cursor.execute('PRAGMA table_info(%s)' % (table_name,))
+        if table_name not in self.cache_column_names:
+            self.cache_column_names[table_name] = []
+        for table_info_row in cursor:
+            self.cache_column_names[table_name].append( table_info_row['name'] )
 
     def _set_loglevel(self):
         log.setLevel(LOG_LEVELS[self.loglevel])
 
     def postloop(self):
-        log.info("== exit shell ==")
+        print
+        log.info("== exit sqlite_cli ==")
 
 if __name__ == '__main__':
     cli = SQLiteCli()
