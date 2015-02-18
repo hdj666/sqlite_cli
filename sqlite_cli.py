@@ -12,10 +12,15 @@ import sys
 import logging
 import re
 import readline
+import glob
 
 from cmd2 import Cmd
 
 
+# =============================================================================
+# readline config/setup/...
+# =============================================================================
+# history file setup
 histfile = os.path.join(os.path.expanduser("~"), ".sqlite_cli.history")
 try:
     readline.read_history_file(histfile)
@@ -23,6 +28,12 @@ except IOError:
     pass
 import atexit
 atexit.register(readline.write_history_file, histfile)
+
+# / should not be a delimiter for path completitions,
+# so we set our own delimiters.
+readline.set_completer_delims(' \t\n;')
+# =============================================================================
+
 
 # =============================================================================
 # System Core Settings = START ================================================
@@ -144,6 +155,10 @@ SQL_GET_TABLE_NAMES         = "SELECT tbl_name as name from sqlite_master where 
 #     'JOIN', 'LEFT', 'RIGHT', 'NOT', 'IN',
 # )
 
+CONFIG_FILES = [ '/etc/sqlite_cli.cfg',
+                 os.path.join(os.path.expanduser('~'), '.sqlite_cli.cfg'),
+                 './.sqlite_cli.cfg',
+                 './sqlite_cli.cfg',]
 
 # Color Theme Settings = START ================================================
 COLUMN_NAME_COLOR   = YELLOW
@@ -172,6 +187,35 @@ class SQLiteCli(Cmd):
         self.cache_column_names = {} # { TABLE_NAME: [COLUMN_NAME_0, COLUMN_NAME_1, COLUMN_NAME_N,], }
 
     # =========================================================================
+    def do_load_config(self, filename):
+        log.error('load_config is not implemented!')
+
+    @staticmethod
+    def help_load_config():
+        print
+        print HIGHLIGHT("<<< load_config [FILENAME]")
+        print "   Load configuration from FILENAME."
+        print
+        print "   Without FILENAME configfiles will be "
+        print "   searched and loaded (adaptive) from:"
+        for filename in CONFIG_FILES:
+            print "      o) %s" % (filename,)
+        print
+
+    @staticmethod
+    def complete_load_config(text, line, begidx, endidx):
+        text_new    = "%s*" % (line[len('load_config') + 1:].strip(),)
+        completions = glob.glob(text_new)
+        # print
+        # print "text          : ", text
+        # print "text_new      : ", text_new
+        # print "line          : ", line
+        # print "begidx|endidx : %s|%s" % (begidx, endidx,)
+        # print "completitions : ", completions
+        # print
+        return completions
+
+    # =========================================================================
     def do_mode(self, line):
         if line.upper() in FORMATS.keys():
             self.mode = line.upper()
@@ -180,9 +224,10 @@ class SQLiteCli(Cmd):
         else:
             log.error('Mode "%s" is unknown!', line)
 
-    def help_mode(self):
+    @staticmethod
+    def help_mode():
         print
-        print HIGHLIGHT(">>> %s [MODE]") % (RED(self.mode),)
+        print HIGHLIGHT(">>> mode [MODE]")
         print "   Set output mode to MODE."
         print "   Use "
         print "      mode <TAB><TAB>"
@@ -344,14 +389,19 @@ class SQLiteCli(Cmd):
         print "   with a filter of *.db, *.sqlite (Filter is configurable)."
         print
 
-    def complete_use(self, text, line, begidx, endidx):
-        filenames = []
-        for entry in os.listdir('./'):
-            if os.path.isfile(entry):
+    @staticmethod
+    def complete_use(text, line, begidx, endidx):
+        text_new    = "%s*" % (text,)
+        completions = []
+        for fn in glob.glob(text_new):
+            if os.path.isfile(fn):
                 for ending in DATABASE_FILENAME_SUFFIXES:
-                    if entry.endswith(ending):
-                        filenames.append(entry)
-        return self._complete(text, filenames)
+                    if fn.endswith(ending):
+                        completions.append(fn)
+            else:
+                completions.append(fn)
+        return completions
+
     # =========================================================================
     def complete_load(self, text, line, begidx, endidx):
         filenames = []
