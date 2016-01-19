@@ -15,3 +15,9 @@ did not provide.
     * Exec file nativ call
     * Store queries with parameters (positional and named)
     * threading for background queries
+
+## Idea scratch section for additional features:
+    * resultset as panda DataFrame?
+    * the whole functionality as ipython extension?
+    
+    
