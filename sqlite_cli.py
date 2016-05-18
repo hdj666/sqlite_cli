@@ -149,7 +149,7 @@ FORMATS = {
 }
 
 DATABASE_FILENAME_SUFFIXES  = ['db', 'sqlite',]
-SQL_GET_TABLE_NAMES         = "SELECT tbl_name as name from sqlite_master where type in ('table');"
+SQL_GET_TABLE_NAMES         = "SELECT tbl_name as name from sqlite_master where type in ('table', 'view');"
 # SQL_KEYWORDS                = (
 #     'SELECT', 'FROM', 'UPDATE', 'SET', 'ON', 'ORDER BY', 'LIMIT', 'AS', 'DROP', 'PRAGMA',
 #     'JOIN', 'LEFT', 'RIGHT', 'NOT', 'IN',
@@ -376,6 +376,9 @@ class SQLiteCli(Cmd):
         data = cur.fetchone()
         log.debug("Connected to database '%s'.", db_name)
         log.debug("SQLiteVersion is '%s'.", data['version'])
+        log.debug("Updateing table names cache...")
+        self._update_cache_table_names()
+        log.debug("done.")
 
     @staticmethod
     def help_use():
@@ -447,11 +450,20 @@ class SQLiteCli(Cmd):
         cur = self.connection.cursor()
         try:
             cur.execute(line)
+            log.debug('rowcount after executing "%s" is %s.', line, cur.rowcount)
+
             data = cur.fetchall()
-            log.debug("Total number of rows updated: %s", self.connection.total_changes)
-            log.debug("Result lines count is %s", (len(data),))
-            if len(data) > 0:
-                self._print_data( cur, data )
+            log.debug('rowcount after fetchall() "%s" is %s.', line, cur.rowcount)
+            log.debug('len(data) is %s.', len(data))
+
+            if len(data) == 0: #cur.rowcount <= 0:
+                cur.execute('select changes() as changes;')
+                for row in cur:
+                    log.info('%s rows changed.', row['changes'])
+            else:
+                log.debug("Result lines count is %s", (len(data),))
+                if len(data) > 0:
+                    self._print_data( cur, data )
         except DB.Error, e:
             self.connection.rollback()
             log.error("(default cmdhandler) Command failed! %s", e)
@@ -497,7 +509,7 @@ class SQLiteCli(Cmd):
 
         for row in rows:
             for column_name in column_names:
-                print "%s:%s" % (COLUMN_NAME_COLOR("{0!s:<{width}}".format(column_name, width=name_max + 1 )),
+                print "%s: %s" % (COLUMN_NAME_COLOR("{0!s:<{width}}".format(column_name, width=name_max + 1 )),
                                  DATA_COLOR(row[column_name]),)
             print
 
